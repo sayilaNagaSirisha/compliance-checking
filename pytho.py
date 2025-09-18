@@ -160,6 +160,7 @@ UNIFIED_COMPONENT_DB = {
     "gmm-5040": {"Manufacturer": "Acon", "Product Category": "Antenna", "RoHS": "Yes", "Frequency": "1575.42MHz", "Description": "GPS/GNSS active patch antenna"}
 }
 
+
 # --- TEST CASE KNOWLEDGE BASE ---
 TEST_CASE_KNOWLEDGE_BASE = {
     "ip rating": {
@@ -169,7 +170,7 @@ TEST_CASE_KNOWLEDGE_BASE = {
         "procedure": [
             "1. Prepare the test chamber with a specified dust concentration or water spray nozzle.",
             "2. Place the device in the chamber and expose it to the test conditions for the required duration.",
-            "3. After the test, inspect the device for any ingress of dust or water.",
+            "3. Inspect the device for any ingress of dust or water.",
             "4. Verify that the device is still fully functional."
         ],
         "parameters": {
@@ -476,7 +477,6 @@ if option == "Component Information":
         st.markdown(f"### Details for: {st.session_state.searched_part.upper()}")
 
         # Dynamically create display data from the found component's dictionary
-        # We'll order some key fields first, then add the rest
         ordered_keys_priority = [
             "Manufacturer", "Product Category", "RoHS", "Capacitance", 
             "Voltage Rating DC", "Dielectric", "Tolerance", "Case Code - in", 
@@ -492,39 +492,22 @@ if option == "Component Information":
         ]
         
         display_data = {}
-        # Add 'Part Number' explicitly as the first item
         display_data["Part Number"] = st.session_state.searched_part.upper()
 
-        # Add other common fields that might exist in the DB
-        # Convert DB keys to display-friendly names (e.g., "Voltage Rating DC" to "Voltage Rating DC")
         for db_key in ordered_keys_priority:
             if db_key in component:
-                # Capitalize and replace underscores for better display
                 display_key = db_key.replace('_', ' ').title() 
                 display_data[display_key] = component[db_key]
         
-        # Add any other fields from the component that were not explicitly ordered
         for db_key, value in component.items():
             display_key = db_key.replace('_', ' ').title()
-            if display_key not in display_data: # Avoid re-adding already processed keys
+            if display_key not in display_data:
                 display_data[display_key] = value
 
-        data_items = list(display_data.items())
-        
-        col1, col2 = st.columns(2)
-        midpoint = (len(data_items) + 1) // 2
-        
-        with col1:
-            for key, value in data_items[:midpoint]: # Display first half in col1
-                st.markdown(f"**{key}**")
-                st.markdown(str(value) if str(value).strip() else " ")
-                st.markdown("---")
+        # Convert the dictionary to a pandas DataFrame and display as a single-row table
+        df = pd.DataFrame([display_data])
+        st.dataframe(df.style.set_properties(**{'white-space': 'normal'}), hide_index=True, use_container_width=True)
 
-        with col2:
-            for key, value in data_items[midpoint:]: # Display second half in col2
-                st.markdown(f"**{key}**")
-                st.markdown(str(value) if str(value).strip() else " ")
-                st.markdown("---")
 
 # --- Test Requirement Generation Module ---
 elif option == "Test Requirement Generation":
