@@ -445,7 +445,7 @@ def parse_report(uploaded_file):
 
 def display_test_card(test_case, color):
     details = f"<b>🧪 Test:</b> {test_case.get('TestName', 'N/A')}<br>"
-    for key, label in {'Standard ':'    📘   Standard ', 'Expected  ':   '   🎯 Expected', '  Actual  ':    '  📌 Actual', 'Description': '💬 Description'}.items():
+    for key, label in {'Standard': '📘 Standard', 'Expected': '🎯 Expected', 'Actual': '📌 Actual', 'Description': '💬 Description'}.items():
         value = test_case.get(key)
         if pd.notna(value) and str(value).strip() and str(value).lower() not in ['—', 'nan']:
             details += f"<b>{label}:</b> {value}<br>"
@@ -617,6 +617,4 @@ elif option == "Dashboard & Analytics":
     c1, c2, c3 = st.columns(3)
     c1.metric("Reports Verified", st.session_state.reports_verified)
     c2.metric("Requirements Generated", st.session_state.requirements_generated)
-
     c3.metric("Components in DB", len(UNIFIED_COMPONENT_DB))
-
