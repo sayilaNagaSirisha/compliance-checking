@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import pdfplumber
@@ -37,11 +38,444 @@ with col1:
 
 with col2:
     # This code displays the title in the second (right) column.
-    st.title("Regulatory Compliance & Safety Tool", anchor=False)
-    st.caption("A one-stop solution for managing and verifying automotive component compliance and safety tests.")
+    st.title("Regulatory Compliance & Safety Verification Tool")
 
 
-# --- UNIFIED COMPONENT KNOWLEDGE BASE ---
+# === Advanced CSS for Styling ===
+st.markdown("""
+<style>
+.card{background:#f9f9f9; border-radius:10px; padding:15px; margin-bottom:10px; border-left: 5px solid #0056b3;}
+.small-muted{color:#777; font-size:0.95em;}
+.result-pass{color:#1e9f50; font-weight:700;}
+.result-fail{color:#c43a31; font-weight:700;}
+.main .block-container { padding-top: 2rem; }
+</style>
+""", unsafe_allow_html=True)
+
+# === Session State Initialization ===
+def init_session_state():
+    state_defaults = {
+        "reports_verified": 0, "requirements_generated": 0, "found_component": None,
+        "component_db": pd.DataFrame()
+    }
+    for key, value in state_defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+init_session_state()
+
+
+# === UPGRADED KNOWLEDGE BASE with Detailed Procedures ===
+TEST_CASE_KNOWLEDGE_BASE = {
+    "water ingress": {
+        "name": "Water Ingress Protection Test (IPX7)",
+        "standard": "Based on ISO 20653 / IEC 60529",
+        "description": "This test simulates the temporary immersion of the device in water to ensure no harmful quantity of water can enter the enclosure.",
+        "procedure": [
+            "Ensure the Device Under Test (DUT) is in a non-operational state and at ambient temperature.",
+            "Submerge the DUT completely in a water tank.",
+            "The lowest point of the DUT should be 1 meter below the surface of the water.",
+            "The highest point of the DUT should be at least 0.15 meters below the surface.",
+            "Maintain the immersion for the specified duration.",
+            "After the test, remove the DUT, dry the exterior, and inspect the interior for any signs of water ingress.",
+            "Conduct a functional check to ensure the device operates as expected."
+        ],
+        "parameters": {
+            "Immersion Depth": "1 meter",
+            "Test Duration": "30 minutes",
+            "Water Temperature": "Ambient (within 5°C of DUT temperature)"
+        },
+        "equipment": ["Water Immersion Tank", "Depth Measurement Tool", "Stopwatch"]
+    },
+    "thermal shock": {
+        "name": "Thermal Shock Test",
+        "standard": "Based on ISO 16750-4",
+        "description": "This test simulates the stress placed on electronic components when moving between extreme temperatures, such as a car being washed in winter.",
+        "procedure": [
+            "Set up a dual-chamber thermal shock system (hot and cold chambers).",
+            "Place the DUT in the cold chamber and allow it to stabilize at the minimum temperature.",
+            "Rapidly transfer the DUT to the hot chamber (transfer time should be less than 1 minute).",
+            "Allow the DUT to stabilize at the maximum temperature.",
+            "This completes one cycle. Repeat for the specified number of cycles.",
+            "After the final cycle, allow the DUT to return to room temperature and perform a full functional and visual inspection."
+        ],
+        "parameters": {
+            "Minimum Temperature": "-40°C",
+            "Maximum Temperature": "+85°C",
+            "Soak Time per Chamber": "1 hour",
+            "Number of Cycles": "100 cycles"
+        },
+        "equipment": ["Dual-Chamber Thermal Shock System"]
+    },
+    "vibration": {
+        "name": "Sinusoidal Vibration Test",
+        "standard": "Based on IEC 60068-2-6",
+        "description": "This test simulates the vibrations that a component might experience during its operational life due to engine harmonics or rough road conditions.",
+        "procedure": [
+            "Securely mount the DUT onto the vibration shaker table in its intended orientation.",
+            "Sweep the frequency range from the minimum to the maximum value and back down.",
+            "Perform the sweep on all three axes (X, Y, and Z).",
+            "Maintain the specified G-force (acceleration) throughout the test.",
+            "During the test, monitor the DUT for any intermittent failures or resonant frequencies.",
+            "After the test, perform a full functional and visual inspection for any damage."
+        ],
+        "parameters": {
+            "Frequency Range": "10 Hz to 500 Hz",
+            "Acceleration": "5g (49 m/s²)",
+            "Sweep Rate": "1 octave/minute",
+            "Duration per Axis": "2 hours"
+        },
+        "equipment": ["Electrodynamic Shaker Table", "Vibration Controller", "Accelerometers"]
+    },
+     "short circuit": {
+        "name": "External Short Circuit Protection",
+        "standard": "Based on AIS-156 / IEC 62133-2",
+        "description": "Verifies the safety performance of the battery or system when an external short circuit is applied.",
+        "procedure": [
+            "Ensure the DUT is fully charged.",
+            "Connect the positive and negative terminals of the DUT with a copper wire or load with a resistance of less than 100 mΩ.",
+            "Maintain the short circuit condition for the specified duration or until the protection circuit interrupts the current.",
+            "Monitor the DUT for any hazardous events like fire, explosion, or casing rupture.",
+            "Measure the case temperature during the test; it should not exceed the specified limit.",
+            "After the test, the DUT should not show signs of fire or explosion."
+        ],
+        "parameters": {
+            "Short Circuit Resistance": "< 100 mΩ",
+            "Test Temperature": "55°C ± 5°C",
+            "Observation Period": "1 hour after the event"
+        },
+        "equipment": ["High-Current Contactor", "Low-Resistance Load", "Thermocouples", "Safety Enclosure"]
+    }
+}
+TEST_CASE_KNOWLEDGE_BASE = {
+    "high temperature endurance": {
+        "name": "High Temperature Endurance Test",
+        "standard": "Based on ISO 16750-4 / IEC 60068-2-2",
+        "description": "This test evaluates the device's ability to operate and survive prolonged exposure to high temperatures, simulating engine compartment conditions.",
+        "procedure": [
+            "Place the DUT in a high-temperature chamber.",
+            "Bring the chamber temperature up to the specified maximum operating temperature.",
+            "Maintain the temperature for the specified duration.",
+            "During the test, apply nominal voltage and monitor the DUT for functional anomalies.",
+            "After the test, allow the DUT to return to room temperature and perform a full functional and visual inspection."
+        ],
+        "parameters": {
+            "Temperature": "+105°C (non-operating) / +85°C (operating)",
+            "Duration": "96 hours to 1000 hours (depending on severity level)",
+            "Relative Humidity": "Less than 20% RH (unless combined with humidity)"
+        },
+        "equipment": ["Temperature Chamber", "Data Logger", "Power Supply"]
+    },
+    "low temperature endurance": {
+        "name": "Low Temperature Endurance Test",
+        "standard": "Based on ISO 16750-4 / IEC 60068-2-1",
+        "description": "This test assesses the device's performance and structural integrity under prolonged exposure to low temperatures, such as those found in cold climates.",
+        "procedure": [
+            "Place the DUT in a low-temperature chamber.",
+            "Bring the chamber temperature down to the specified minimum operating temperature.",
+            "Maintain the temperature for the specified duration.",
+            "During the test, apply nominal voltage and monitor the DUT for functional anomalies.",
+            "After the test, allow the DUT to return to room temperature and perform a full functional and visual inspection."
+        ],
+        "parameters": {
+            "Temperature": "-40°C (non-operating) / -30°C (operating)",
+            "Duration": "96 hours to 1000 hours (depending on severity level)"
+        },
+        "equipment": ["Low-Temperature Chamber", "Data Logger", "Power Supply"]
+    },
+    "temperature cycling": {
+        "name": "Temperature Cycling Test",
+        "standard": "Based on ISO 16750-4 / IEC 60068-2-14",
+        "description": "This test subjects the device to alternating high and low temperatures to detect failures caused by thermal expansion and contraction, which can lead to material fatigue and joint failures.",
+        "procedure": [
+            "Place the DUT in a temperature cycling chamber.",
+            "Cycle the temperature between the specified minimum and maximum values.",
+            "Maintain the specified dwell time at each extreme temperature.",
+            "Ensure the transition rate between temperatures is within specified limits.",
+            "Perform the specified number of cycles.",
+            "After the final cycle, allow the DUT to return to room temperature and perform a full functional and visual inspection."
+        ],
+        "parameters": {
+            "Minimum Temperature": "-40°C",
+            "Maximum Temperature": "+105°C",
+            "Dwell Time at Extremes": "1 hour",
+            "Transition Rate": "5°C/minute minimum",
+            "Number of Cycles": "50 to 1000 cycles"
+        },
+        "equipment": ["Thermal Cycling Chamber", "Data Logger", "Power Supply (for operational checks)"]
+    },
+    "humidity & damp heat test": {
+        "name": "Humidity & Damp Heat Test",
+        "standard": "Based on ISO 16750-4 / IEC 60068-2-78 (Steady State) / IEC 60068-2-30 (Cyclic)",
+        "description": "This test evaluates the device's resistance to high humidity, which can cause corrosion, insulation degradation, and moisture absorption in materials.",
+        "procedure": [
+            "Place the DUT in a climatic chamber.",
+            "Set the chamber to the specified temperature and relative humidity.",
+            "Maintain the conditions for the specified duration (steady state) or cycle through specified temperature and humidity profiles (cyclic).",
+            "If specified, apply nominal power to the DUT during certain phases.",
+            "Monitor for condensation, water droplets, and functional anomalies.",
+            "After the test, allow the DUT to dry, then perform a full functional and visual inspection."
+        ],
+        "parameters": {
+            "Temperature": "+40°C (Steady) / +25°C to +55°C (Cyclic)",
+            "Relative Humidity": "93% RH (Steady) / 95% RH (Cyclic)",
+            "Duration": "48 hours to 56 days (Steady) / 24 hours per cycle, 2-6 cycles (Cyclic)"
+        },
+        "equipment": ["Climatic Chamber (Humidity Chamber)", "Data Logger", "Humidity Sensor"]
+    },
+    "salt spray / corrosion test": {
+        "name": "Salt Spray / Corrosion Test",
+        "standard": "Based on ISO 9227 / ASTM B117",
+        "description": "This test assesses the resistance of components and coatings to corrosion in a saline environment, simulating exposure to road salt or marine conditions.",
+        "procedure": [
+            "Prepare a salt solution (e.g., 5% NaCl solution).",
+            "Place the DUT in a salt spray chamber.",
+            "Atomize the salt solution into a fine mist within the chamber.",
+            "Maintain the specified temperature and continuous salt spray for the duration.",
+            "Periodically inspect the DUT for signs of corrosion (e.g., red rust, white rust).",
+            "After the test, thoroughly rinse and dry the DUT, then perform a functional and visual inspection."
+        ],
+        "parameters": {
+            "Salt Solution Concentration": "5% NaCl",
+            "Temperature": "35°C",
+            "pH of Solution": "6.5 to 7.2",
+            "Test Duration": "24 hours to 1000 hours (depending on material/coating)"
+        },
+        "equipment": ["Salt Spray Chamber", "Salt Solution Preparation", "pH Meter"]
+    },
+    "dust ingress (ip rating)": {
+        "name": "Dust Ingress Protection Test (IP Rating)",
+        "standard": "Based on IEC 60529 (IP5X, IP6X)",
+        "description": "This test verifies the protection of an enclosure against the ingress of dust, which can affect electrical components, moving parts, and optical surfaces.",
+        "procedure": [
+            "Place the DUT in a dust chamber filled with specified talcum powder (or similar fine dust).",
+            "A vacuum pump may be connected to the DUT if negative pressure is required (for category 1 enclosures).",
+            "Circulate the dust within the chamber using fans or blowers for the specified duration.",
+            "After the test, remove the DUT and carefully clean the exterior.",
+            "Disassemble the DUT (if applicable) and visually inspect the interior for any dust penetration.",
+            "Conduct a functional check."
+        ],
+        "parameters": {
+            "Dust Type": "Talcum powder (particle size < 75µm)",
+            "Dust Concentration": "2 kg/m³",
+            "Test Duration": "2 to 8 hours (IP5X) / 8 hours with vacuum (IP6X)",
+            "Air Velocity": "Variable, to ensure uniform dust suspension"
+        },
+        "equipment": ["Dust Chamber", "Vacuum Pump (optional)", "Talcum Powder", "Air Circulator"]
+    },
+    "drop test / mechanical shock": {
+        "name": "Drop Test / Mechanical Shock",
+        "standard": "Based on IEC 60068-2-27 (Shock) / MIL-STD-810G Method 516.6 (Drop)",
+        "description": "This test assesses the device's ability to withstand sudden, non-repetitive forces, such as those experienced during accidental drops, impacts, or rough handling.",
+        "procedure": [
+            "Securely mount the DUT onto a shock testing machine or prepare it for free fall.",
+            "For shock: Subject the DUT to a specified number of shocks (half-sine or sawtooth pulse) along each of its three axes.",
+            "For drop: Drop the DUT from a specified height onto a hard surface, ensuring it lands in different orientations.",
+            "After each shock/drop, visually inspect the DUT for damage.",
+            "Perform functional checks at specified intervals or after all shocks/drops.",
+            "The DUT should remain functional and structurally sound."
+        ],
+        "parameters": {
+            "Shock Pulse": "Half-sine",
+            "Peak Acceleration": "50g to 200g (depending on application)",
+            "Pulse Duration": "6 ms to 11 ms",
+            "Number of Shocks": "3 to 18 shocks per axis",
+            "Drop Height": "0.5 meters to 1.5 meters",
+            "Number of Drops": "Multiple drops on faces, edges, corners"
+        },
+        "equipment": ["Shock Testing Machine", "Drop Tester", "Accelerometer", "Data Acquisition System"]
+    },
+    "overvoltage protection test": {
+        "name": "Overvoltage Protection Test",
+        "standard": "Based on ISO 16750-2 / LV 124",
+        "description": "This test verifies that the device can withstand transient or continuous overvoltage conditions without damage or permanent degradation, simulating faults in the vehicle's electrical system.",
+        "procedure": [
+            "Connect the DUT to a programmable power supply.",
+            "Apply the specified overvoltage level to the DUT's power input.",
+            "Maintain the overvoltage for the specified duration.",
+            "Monitor the DUT for smoke, fire, or catastrophic failure.",
+            "After the test, return to nominal voltage and perform a functional check.",
+            "The device's protection circuit should activate, or it should withstand the overvoltage without damage."
+        ],
+        "parameters": {
+            "Test Voltage": "18V (for 12V systems) or higher transients",
+            "Duration": "60 minutes (continuous) / < 1 second (transient)",
+            "Test Temperature": "Room ambient"
+        },
+        "equipment": ["Programmable DC Power Supply", "Voltmeter", "Ammeter", "Load Box"]
+    },
+    "overcurrent protection test": {
+        "name": "Overcurrent Protection Test",
+        "standard": "Based on UL 60950-1 / IEC 62368-1",
+        "description": "This test confirms that the device's protection mechanisms (e.g., fuses, current limiters) effectively prevent damage from excessive current draw, simulating a short circuit or overload.",
+        "procedure": [
+            "Connect the DUT to a power supply with current limiting capabilities.",
+            "Gradually increase the current beyond the DUT's rated operating current.",
+            "Observe at what current level the protection mechanism (fuse blows, circuit breaker trips, current limiter engages) activates.",
+            "Verify that the device safely enters a protected state without generating excessive heat, smoke, or fire.",
+            "After the protection activates, confirm that the device is not permanently damaged (unless it's a non-resettable fuse).",
+            "Perform a functional check after the test (if applicable)."
+        ],
+        "parameters": {
+            "Overcurrent Level": "1.5 times nominal current up to short circuit",
+            "Activation Time": "Within specified limits (e.g., < 1 second for severe overload)",
+            "Monitoring": "Current, Voltage, Temperature"
+        },
+        "equipment": ["Programmable Power Supply", "Electronic Load", "High-Speed Ammeter", "Thermal Camera"]
+    },
+    "insulation resistance test": {
+        "name": "Insulation Resistance Test",
+        "standard": "Based on IEC 60364-6 / ISO 6469-1",
+        "description": "This test measures the electrical resistance of insulation materials to ensure they adequately prevent current leakage, which is crucial for safety and proper function, especially in high-voltage applications.",
+        "procedure": [
+            "Isolate the DUT from all power sources and ensure all capacitors are discharged.",
+            "Connect the insulation resistance tester (megohmmeter) between the conductors and ground, or between different insulated conductors.",
+            "Apply a specified DC test voltage (e.g., 500V or 1000V) for a set duration.",
+            "Read and record the insulation resistance value.",
+            "Repeat for all relevant insulation points.",
+            "The measured resistance must exceed the specified minimum value."
+        ],
+        "parameters": {
+            "Test Voltage": "500V DC or 1000V DC",
+            "Minimum Resistance": "Generally > 1 MΩ (operating) / > 5 MΩ (new product)",
+            "Test Duration": "1 minute"
+        },
+        "equipment": ["Insulation Resistance Tester (Megohmmeter)"]
+    },
+    "dielectric strength test": {
+        "name": "Dielectric Strength (Hipot) Test",
+        "standard": "Based on IEC 60950-1 / IEC 62368-1",
+        "description": "This test applies a high voltage across insulation barriers to confirm they can withstand electrical stress without breaking down, preventing electric shock hazards.",
+        "procedure": [
+            "Isolate the DUT from all power sources.",
+            "Connect a Hipot tester across the insulation barrier (e.g., between primary and secondary circuits, or between live parts and accessible conductive parts).",
+            "Gradually increase the test voltage to the specified level (AC or DC).",
+            "Maintain the test voltage for the specified duration.",
+            "Monitor for breakdown (arc-over) or excessive leakage current.",
+            "The insulation must withstand the voltage without breakdown or exceeding the current limit."
+        ],
+        "parameters": {
+            "Test Voltage": "e.g., 1500V AC or 2121V DC (for basic insulation)",
+            "Test Duration": "60 seconds or 1 second (production line)",
+            "Leakage Current Limit": "Typically < 5 mA"
+        },
+        "equipment": ["Hipot Tester (Dielectric Withstand Tester)"]
+    },
+    "electrostatic discharge (esd) test": {
+        "name": "Electrostatic Discharge (ESD) Test",
+        "standard": "Based on ISO 10605 / IEC 61000-4-2",
+        "description": "This test evaluates the device's immunity to electrostatic discharges, which can occur from human contact or charged objects, potentially causing malfunctions or damage to sensitive electronics.",
+        "procedure": [
+            "Place the DUT on a ground reference plane.",
+            "Apply ESD pulses to various points on the DUT (contact discharge) and to nearby surfaces (air discharge).",
+            "Perform both positive and negative polarity discharges.",
+            "Monitor the DUT for any functional degradation, resets, or permanent damage during and after discharges.",
+            "The device should either operate without interruption or recover to its normal state after the discharge."
+        ],
+        "parameters": {
+            "Contact Discharge Voltage": "±2 kV to ±8 kV",
+            "Air Discharge Voltage": "±2 kV to ±15 kV (depending on severity level)",
+            "Number of Discharges": "10 per test point",
+            "Repetition Rate": "Minimum 1 second between discharges"
+        },
+        "equipment": ["ESD Simulator Gun", "Ground Reference Plane", "Coupling Plane"]
+    },
+    "emi/emc test (electromagnetic compatibility)": {
+        "name": "EMI/EMC Test (Electromagnetic Compatibility)",
+        "standard": "Based on CISPR 25 (Emissions) / ISO 11452 (Immunity) / ECE R10",
+        "description": "This is a broad category of tests ensuring the device does not interfere with other electronic systems (emissions) and is immune to external electromagnetic interference (immunity).",
+        "procedure": [
+            "This involves multiple sub-tests (Radiated Emissions, Conducted Emissions, Radiated Immunity, Conducted Immunity).",
+            "Each sub-test has specific setup, instrumentation, and pass/fail criteria.",
+            "Generally, the DUT is placed in an anechoic chamber or shielded room.",
+            "Measurements are taken across a specified frequency range.",
+            "The DUT must meet defined limits for emitted electromagnetic energy and operate without degradation when subjected to specified levels of interference."
+        ],
+        "parameters": {
+            "Frequency Ranges": "Vary by sub-test (e.g., 150 kHz - 1 GHz)",
+            "Limit Lines": "Defined by standard (e.g., dBµV/m for emissions, V/m for immunity)",
+            "Modulation": "Specific modulations for immunity (e.g., AM, Pulse)"
+        },
+        "equipment": ["Anechoic Chamber", "EMI Receiver/Spectrum Analyzer", "Antennas", "Signal Generators", "Power Amplifiers"]
+    },
+    "conducted immunity test": {
+        "name": "Conducted Immunity Test (CI)",
+        "standard": "Based on ISO 11452-4 (BCI) / IEC 61000-4-6",
+        "description": "This test subjects the device to radio-frequency disturbances injected directly into its cables, simulating interference from nearby cables or power lines.",
+        "procedure": [
+            "Place the DUT on a ground plane.",
+            "Inject modulated RF signals onto the DUT's power and signal lines using a coupling clamp or CDNs (Coupling/Decoupling Networks).",
+            "Sweep the frequency range at specified power levels.",
+            "Monitor the DUT for any functional anomalies or degradation during the test.",
+            "The device must maintain normal operation throughout the test without error or degradation below acceptable limits."
+        ],
+        "parameters": {
+            "Frequency Range": "150 kHz to 200 MHz",
+            "Test Level": "e.g., 100 mA (BCI) / 3 Vrms, 10 Vrms (IEC)",
+            "Modulation": "80% AM, 1 kHz sine wave"
+        },
+        "equipment": ["RF Signal Generator", "Power Amplifier", "Coupling/Decoupling Networks (CDNs) or Bulk Current Injection (BCI) Probe", "Spectrum Analyzer"]
+    },
+    "radiated emissions test": {
+        "name": "Radiated Emissions Test (RE)",
+        "standard": "Based on CISPR 25 / ECE R10 / FCC Part 15",
+        "description": "This test measures the electromagnetic fields radiated by the device into the air to ensure it does not cause interference with other electronic systems.",
+        "procedure": [
+            "Place the DUT in an anechoic chamber or on an open-area test site (OATS).",
+            "Operate the DUT in its typical modes.",
+            "Scan across a specified frequency range using calibrated antennas at defined measurement distances.",
+            "Measure both horizontal and vertical polarization of the electric field.",
+            "The measured emissions must fall below the specified limit lines.",
+            "Identify and investigate any emissions exceeding limits."
+        ],
+        "parameters": {
+            "Frequency Range": "30 MHz to 1 GHz (or higher)",
+            "Measurement Distance": "1 meter, 3 meters, or 10 meters",
+            "Limit Lines": "Defined in dBµV/m by the standard",
+            "Antenna Types": "Biconical, Log-Periodic, Horn"
+        },
+        "equipment": ["Anechoic Chamber / OATS", "EMI Receiver / Spectrum Analyzer", "Antennas", "Preamplifiers", "Turntable", "Antenna Mast"]
+    },
+    "endurance / life cycle test": {
+        "name": "Endurance / Life Cycle Test",
+        "standard": "Generic, application-specific",
+        "description": "This test simulates the total expected operational life of a component to identify potential long-term wear-out mechanisms or degradation over time.",
+        "procedure": [
+            "Operate the DUT continuously or through specified cycles (e.g., power on/off cycles, switch actuations, motor runs).",
+            "Conduct the test under nominal environmental conditions (or accelerated conditions if specified).",
+            "Periodically perform functional checks and measure key performance parameters.",
+            "Record any failures, degradation, or changes in performance over the test duration.",
+            "The device should maintain its specified performance throughout its expected lifespan."
+        ],
+        "parameters": {
+            "Test Duration": "Equivalent to 5 to 15 years of operational life (e.g., 5000 hours, 100,000 cycles)",
+            "Operating Conditions": "Nominal voltage, current, temperature",
+            "Monitoring Frequency": "Regular intervals or continuous logging"
+        },
+        "equipment": ["Test Bench with DUT fixtures", "Programmable Controller (for cycling)", "Data Logger", "Measurement Instruments"]
+    },
+    "connector durability test": {
+        "name": "Connector Durability Test",
+        "standard": "Based on USCAR-2 / IEC 60512-9",
+        "description": "This test assesses the mechanical and electrical integrity of electrical connectors over repeated mating and unmating cycles, simulating their operational lifespan.",
+        "procedure": [
+            "Mount the connector to a test fixture that simulates its application.",
+            "Perform repeated mating and unmating cycles using an automated machine.",
+            "Conduct the test at a specified speed and force.",
+            "Periodically perform electrical measurements (e.g., contact resistance, insulation resistance) during or after a set number of cycles.",
+            "Visually inspect the connector for mechanical damage (e.g., deformation, wear, breakage of contacts or housing).",
+            "The contact resistance should remain stable and within limits, and no mechanical damage should occur."
+        ],
+        "parameters": {
+            "Number of Cycles": "10 to 1000 cycles (depending on application)",
+            "Mating/Unmating Force": "Measured or controlled by machine",
+            "Contact Resistance Limit": "Typically < 10 mΩ",
+            "Test Environment": "Room ambient (or combined with environmental tests)"
+        },
+        "equipment": ["Connector Mating/Unmating Machine", "Contact Resistance Meter", "Optical Inspection Tools"]
+    }
+}
+
+# --- COMPLETE, UNIFIED, and FULLY POPULATED Component Database ---
 UNIFIED_COMPONENT_DB = {
     "cga3e1x7r1e105k080ac": {"Manufacturer":"TDK", "Product Category":"Multilayer Ceramic Capacitors MLCC - SMD/SMT", "RoHS":"Yes", "Capacitance":"1 uF", "Voltage Rating DC":"25 VDC", "Dielectric":"X7R", "Tolerance":"10 %", "Case Code - in":"0603", "Case Code - mm":"1608", "Termination Style":"SMD/SMT", "Termination":"Standard", "Minimum Operating Temperature":"-55 C", "Maximum Operating Temperature":"+125 C", "Length":"1.6 mm", "Width":"0.8 mm", "Height":"0.8 mm", "Product":"Automotive MLCCs", "Qualification":"AEC-Q200"},
     "spc560p50l3": {"Manufacturer": "STMicroelectronics", "Product Category": "MCU", "RoHS": "Yes", "CPU Core": "PowerPC e200z0h", "Frequency": "64 MHz", "RAM Size": "48KB", "Flash Size": "512KB", "Package": "LQFP-100", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q100"},
@@ -54,530 +488,246 @@ UNIFIED_COMPONENT_DB = {
     "1n4007": {"Manufacturer": "Multiple", "Product Category": "Diode", "RoHS": "Yes", "VRRM": "1000V", "If(AV)": "1A", "Package": "DO-41", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
     "fh28-10s-0.5sh(05)": {"Manufacturer": "Hirose", "Product Category": "Connector", "RoHS": "Yes", "Pitch": "0.5mm", "Positions": "10", "Current": "0.5A", "Package": "FFC/FPC", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "105 C"},
     "gcm155l81e104ke02d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.1uF", "Voltage Rating DC": "25V", "Dielectric": "X8L", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C", "Qualification": "AEC-Q200"},
-    "grt1555c1e220ja02j": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "22pF", "Voltage Rating DC": "25V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "grt155r61a475me13d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "4.7uF", "Voltage Rating DC": "10V", "Dielectric": "X5R", "Case Code - mm": "1005", "Tolerance": "20%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification":"AEC-Q200"},
-    "grt31cr61a476ke13l": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "47uF", "Voltage Rating DC": "10V", "Dielectric": "X5R", "Case Code - mm": "3216", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification":"AEC-Q200"},
-    "cga2b2c0g1h180j050ba": {"Manufacturer": "TDK", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "18pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "c0402c103k4racauto": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "10nF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "gcm1555c1h101ja16d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "100pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "grt155r71h104ke01d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.1uF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "grt21br61e226me13l": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "22uF", "Voltage Rating DC": "25V", "Dielectric": "X5R", "Case Code - mm": "2012", "Tolerance": "20%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification":"AEC-Q200"},
-    "grt1555c1h150fa02d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "15pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "1%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "0402yc222j4t2a": {"Manufacturer": "AVX", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "2.2nF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - in": "0402", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "gcm1555c1h560fa16d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "56pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "1%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "grt1555c1h330fa02d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "33pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "1%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "grt188c81a106me13d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "10uF", "Voltage Rating DC": "10V", "Dielectric": "X6S", "Case Code - mm": "1608", "Tolerance": "20%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "105 C", "Qualification":"AEC-Q200"},
+    "grt1555c1e220ja02j": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "22pF", "Voltage Rating DC": "25V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "grt155r61a475me13d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "4.7uF", "Voltage Rating DC": "10V", "Dielectric": "X5R", "Case Code - mm": "1005", "Tolerance": "20%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification": "AEC-Q200"},
+    "grt31cr61a476ke13l": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "47uF", "Voltage Rating DC": "10V", "Dielectric": "X5R", "Case Code - mm": "3216", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification": "AEC-Q200"},
+    "cga2b2c0g1h180j050ba": {"Manufacturer": "TDK", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "18pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "c0402c103k4racauto": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "10nF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "gcm1555c1h101ja16d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "100pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "grt155r71h104ke01d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.1uF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "grt21br61e226me13l": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "22uF", "Voltage Rating DC": "25V", "Dielectric": "X5R", "Case Code - mm": "2012", "Tolerance": "20%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification": "AEC-Q200"},
+    "grt1555c1h150fa02d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "15pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "1%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "0402yc222j4t2a": {"Manufacturer": "AVX", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "2.2nF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - in": "0402", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "gcm1555c1h560fa16d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "56pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "1%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "grt1555c1h330fa02d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "33pF", "Voltage Rating DC": "50V", "Dielectric": "C0G", "Case Code - mm": "1005", "Tolerance": "1%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "grt188c81a106me13d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "10uF", "Voltage Rating DC": "10V", "Dielectric": "X6S", "Case Code - mm": "1608", "Tolerance": "20%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "105 C", "Qualification": "AEC-Q200"},
     "umk212b7105kfna01": {"Manufacturer": "Taiyo Yuden", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "1uF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - in": "0805", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C"},
-    "c1206c104k5racauto": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.1uF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - in": "1206", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "grt31cr61h106ke01k": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "10uF", "Voltage Rating DC": "50V", "Dielectric": "X5R", "Case Code - in": "1206", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification":"AEC-Q200"},
-    "c0402c333k4racauto": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "33nF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - in": "0402", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
+    "c1206c104k5racauto": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.1uF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - in": "1206", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "grt31cr61h106ke01k": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "10uF", "Voltage Rating DC": "50V", "Dielectric": "X5R", "Case Code - in": "1206", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "85 C", "Qualification": "AEC-Q200"},
+    "c0402c333k4racauto": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "33nF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - in": "0402", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
     "cl10b474ko8vpnc": {"Manufacturer": "Samsung", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.47uF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - in": "0603", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C"},
-    "gcm155r71c224ke02d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.22uF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "gcm155r71h102ka37j": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "1nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
+    "gcm155r71c224ke02d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.22uF", "Voltage Rating DC": "16V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "gcm155r71h102ka37j": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "1nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
     "50tpv330m10x10.5": {"Manufacturer": "Panasonic", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "330uF", "Voltage Rating DC": "50V", "Type": "Polymer", "ESR": "18 mOhm", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "105 C"},
     "cl31b684kbhwpne": {"Manufacturer": "Samsung", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "0.68uF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - in": "1206", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C"},
-    "gcm155r71h272ka37d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "2.7nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
+    "gcm155r71h272ka37d": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "2.7nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
     "edk476m050s9haa": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "47uF", "Voltage Rating DC": "50V", "Type": "Aluminum Electrolytic", "ESR": "700 mOhm", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "105 C"},
-    "gcm155r71h332ka37j": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "3.3nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "a768ke336m1hlae042": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "33uF", "Voltage Rating DC": "50V", "Type": "Polymer", "ESR": "42 mOhm", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "ac0402jrx7r9bb152": {"Manufacturer": "Yageo", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "1.5nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - in": "0402", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
+    "gcm155r71h332ka37j": {"Manufacturer": "Murata", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "3.3nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - mm": "1005", "Tolerance": "10%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "a768ke336m1hlae042": {"Manufacturer": "KEMET", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "33uF", "Voltage Rating DC": "50V", "Type": "Polymer", "ESR": "42 mOhm", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
+    "ac0402jrx7r9bb152": {"Manufacturer": "Yageo", "Product Category": "Capacitor", "RoHS": "Yes", "Capacitance": "1.5nF", "Voltage Rating DC": "50V", "Dielectric": "X7R", "Case Code - in": "0402", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q200"},
     "d5v0h1b2lpq-7b": {"Manufacturer": "Diodes Inc.", "Product Category": "TVS Diode", "RoHS": "Yes", "V Rwm": "5V", "Power": "30W", "Package": "X2-DFN1006-2", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
     "szmmbz9v1alt3g": {"Manufacturer": "onsemi", "Product Category": "Zener Diode", "RoHS": "Yes", "Vz": "9.1V", "Power": "225mW", "Tolerance": "5%", "Package": "SOT-23", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
-    "d24v0s1u2tq-7": {"Manufacturer": "Diodes Inc.", "Product Category": "TVS Diode Array", "RoHS": "Yes", "V Rwm": "24V", "Channels": "1", "Package": "SOD-323", "Minimum Operating Temperature": "-65 C", "Maximum Operating Temperature": "150 C"},
-    "b340bq-13-f": {"Manufacturer": "Diodes Inc.", "Product Category": "Schottky Diode", "RoHS": "Yes", "VRRM": "40V", "If(AV)": "3A", "Package": "SMC", "Minimum Operating Temperature": "-65 C", "Maximum Operating Temperature": "150 C", "Qualification":"AEC-Q101"},
-    "tld8s22ah": {"Manufacturer": "Infineon", "Product Category": "TVS Diode", "RoHS": "Yes", "V Rwm": "22V", "Power": "8000W", "Package": "DO-218AB", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "175 C", "Qualification":"AEC-Q101"},
-    "b260aq-13-f": {"Manufacturer": "Diodes Inc.", "Product Category": "Schottky Diode", "RoHS": "Yes", "VRRM": "60V", "If(AV)": "2A", "Package": "SMB", "Minimum Operating Temperature": "-65 C", "Maximum Operating Temperature": "150 C", "Qualification":"AEC-Q101"},
-    "rb530sm-40fht2r": {"Manufacturer": "ROHM", "Product Category": "Schottky Diode", "RoHS": "Yes", "VRM": "40V", "IF": "30mA", "Package": "SOD-523", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C"},
-    "74279262": {"Manufacturer": "Würth Elektronik", "Product Category": "Ferrite Bead", "RoHS": "Yes", "Impedance @ 100MHz": "220 Ohm", "Current": "3A", "Package": "0805", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "742792641": {"Manufacturer": "Würth Elektronik", "Product Category": "Ferrite Bead", "RoHS": "Yes", "Impedance @ 100MHz": "1000 Ohm", "Current": "1.5A", "Package": "0805", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "742792625": {"Manufacturer": "Würth Elektronik", "Product Category": "Ferrite Bead", "RoHS": "Yes", "Impedance @ 100MHz": "500 Ohm", "Current": "2.5A", "Package": "0805", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "742792150": {"Manufacturer": "Würth Elektronik", "Product Category": "Ferrite Bead", "RoHS": "Yes", "Impedance @ 100MHz": "30 Ohm", "Current": "6A", "Package": "1206", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "voma617a-4x001t": {"Manufacturer": "Vishay", "Product Category": "Optocoupler", "RoHS": "Yes", "Type": "Transistor Output", "CTR": "100-200%", "Package": "SOP-4", "Isolation": "3750Vrms", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "110 C", "Qualification":"AEC-Q101"},
-    "534260610": {"Manufacturer": "Molex", "Product Category": "Connector", "RoHS": "Yes", "Type": "Pico-Lock", "Positions": "6", "Pitch": "1.5mm", "Termination Style": "Wire-to-Board Header", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "105 C"},
-    "fh52-40s-0.5sh(99)": {"Manufacturer": "Hirose", "Product Category": "Connector", "RoHS": "Yes", "Pitch": "0.5mm", "Positions": "40", "Current": "0.5A", "Termination Style": "FFC/FPC", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "105 C"},
-    "744235510": {"Manufacturer": "Würth Elektronik", "Product Category": "Inductor", "RoHS": "Yes", "Inductance": "51uH", "Current": "1.8A", "Package": "Shielded SMD", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "lqw15an56nj8zd": {"Manufacturer": "Murata", "Product Category": "Inductor", "RoHS": "Yes", "Inductance": "56nH", "Current": "350mA", "Case Code - in": "0402", "Tolerance": "5%", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "spm7054vt-220m-d": {"Manufacturer": "Sumida", "Product Category": "Inductor", "RoHS": "Yes", "Inductance": "22uH", "Current": "3.1A", "Package": "7mm SMD", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C"},
-    "744273801": {"Manufacturer": "Würth Elektronik", "Product Category": "Inductor", "RoHS": "Yes", "Inductance": "8uH", "Current": "1.8A", "Package": "Shielded SMD", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "74404084068": {"Manufacturer": "Würth Elektronik", "Product Category": "Inductor", "RoHS": "Yes", "Inductance": "6.8uH", "Current": "2.2A", "Package": "0804", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C"},
-    "744231091": {"Manufacturer": "Würth Elektronik", "Product Category": "Inductor", "RoHS": "Yes", "Inductance": "0.9uH", "Current": "6.5A", "Package": "Shielded SMD", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "150 C", "Qualification":"AEC-Q200"},
-    "mlz2012m6r8htd25": {"Manufacturer": "TDK", "Product Category": "Inductor", "RoHS": "Yes", "Inductance": "6.8uH", "Current": "300mA", "Case Code - in": "0805", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "125 C", "Qualification":"AEC-Q200"},
-    "rq3g270bjfratcb": {"Manufacturer": "ROHM", "Product Category": "MOSFET", "RoHS": "Yes", "Vds": "20V", "Id": "27A", "Rds(on)": "2.8 mOhm", "Package": "HSMT8", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
-    "pja138k-au_r1_000a1": {"Manufacturer": "PANJIT", "Product Category": "MOSFET", "RoHS": "Yes", "Vds": "100V", "Id": "7A", "Rds(on)": "138 mOhm", "Package": "SOT-223", "Qualification":"AEC-Q101"},
-    "dmp2070uq-7": {"Manufacturer": "Diodes Inc.", "Product Category": "MOSFET", "RoHS": "Yes", "Vds": "20V", "Id": "5.6A", "Rds(on)": "38 mOhm", "Package": "SOT-23", "Qualification":"AEC-Q101"},
-    "ac0402jr-070rl": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "0 Ohm", "Power": "0.063W", "Case Code - in": "0402", "Product": "Jumper", "Qualification":"AEC-Q200"},
-    "ac0402fr-07100kl": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "100 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft158k": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "158 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft30k0": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "30 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft127k": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "127 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmc10k204fth": {"Manufacturer": "Kamaya", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "200 kOhm", "Power": "0.125W", "Tolerance": "1%", "Case Code - in": "0805", "Qualification":"AEC-Q200"},
-    "erj-2rkf2201x": {"Manufacturer": "Panasonic", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "2.2 kOhm", "Power": "0.1W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "erj-2rkf1002x": {"Manufacturer": "Panasonic", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "10 kOhm", "Power": "0.1W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "wr04x1004ftl": {"Manufacturer": "Walsin", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "1 MOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "wr04x10r0ftl": {"Manufacturer": "Walsin", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "10 Ohm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rc0603fr-0759rl": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "59 Ohm", "Power": "0.1W", "Tolerance": "1%", "Case Code - in": "0603", "Qualification":"AEC-Q200"},
-    "ac0402fr-07100rl": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "100 Ohm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "ac0402fr-076k04l": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "6.04 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "ac0402fr-07510rl": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "510 Ohm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "crgcq0402f56k": {"Manufacturer": "TE Connectivity", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "56 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft24k9": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "24.9 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft5k36": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "5.36 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0603ft12k0": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "12 kOhm", "Power": "0.1W", "Tolerance": "1%", "Case Code - in": "0603", "Qualification":"AEC-Q200"},
-    "rmcf0402ft210k": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "210 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "ltr18ezpfsr015": {"Manufacturer": "ROHM", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "15 mOhm", "Power": "1.5W", "Tolerance": "1%", "Case Code - in": "1206", "Qualification":"AEC-Q200"},
-    "erj-pa2j102x": {"Manufacturer": "Panasonic", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "1 kOhm", "Power": "0.25W", "Tolerance": "5%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft5k10": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "5.1 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0603ft100r": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "100 Ohm", "Power": "0.1W", "Tolerance": "1%", "Case Code - in": "0603", "Qualification":"AEC-Q200"},
-    "ac0402jr-074k7l": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "4.7 kOhm", "Power": "0.063W", "Tolerance": "5%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "crf0805-fz-r010elf": {"Manufacturer": "Bourns", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "10 mOhm", "Power": "0.5W", "Tolerance": "1%", "Case Code - in": "0805", "Qualification":"AEC-Q200"},
-    "rmcf0402ft3k16": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "3.16 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft3k48": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "3.48 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft1k50": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "1.5 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf0402ft4k02": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "4.02 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "rmcf1206zt0r00": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "0 Ohm", "Power": "0.25W", "Case Code - in": "1206", "Product": "Jumper", "Qualification":"AEC-Q200"},
-    "rmcf0402ft402k": {"Manufacturer": "Stackpole", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "402 kOhm", "Power": "0.063W", "Tolerance": "1%", "Case Code - in": "0402", "Qualification":"AEC-Q200"},
-    "ac0603fr-7w20kl": {"Manufacturer": "Yageo", "Product Category": "Resistor", "RoHS": "Yes", "Resistance": "20 kOhm", "Power": "0.1W", "Tolerance": "1%", "Case Code - in": "0603", "Qualification":"AEC-Q200"},
-    "h164yp": {"Manufacturer": "Yageo", "Product Category": "Resistor Array", "RoHS": "Yes", "Resistance": "10 kOhm", "Elements": "4", "Package": "0804", "Tolerance": "5%"},
-    "zldo1117qg33ta": {"Manufacturer": "Diodes Inc.", "Product Category": "LDO Regulator", "RoHS": "Yes", "Output Voltage": "3.3V", "Output Current": "1A", "Package": "SOT-223", "Qualification":"AEC-Q100"},
-    "ap63357qzv-7": {"Manufacturer": "Diodes Inc.", "Product Category": "Buck Converter", "RoHS": "Yes", "Input Voltage": "3.8V-32V", "Output Current": "3.5A", "Package": "SOT-563", "Qualification":"AEC-Q100"},
-    "pca9306idcurq1": {"Manufacturer": "Texas Instruments", "Product Category": "I2C Translator", "RoHS": "Yes", "Channels": "2", "Voltage Range": "1V-5.5V", "Package": "VSSOP-8", "Qualification":"AEC-Q100"},
-    "mcp2518fdt-e/sl": {"Manufacturer": "Microchip", "Product Category": "CAN FD Controller", "RoHS": "Yes", "Data Rate": "8 Mbps", "Interface": "SPI", "Package": "SOIC-14", "Qualification":"AEC-Q100"},
-    "iso1042bqdwvq1": {"Manufacturer": "Texas Instruments", "Product Category": "CAN Transceiver", "RoHS": "Yes", "Product": "Isolated", "Data Rate": "5 Mbps", "Package": "SOIC-16", "Qualification":"AEC-Q100"},
-    "pesd2canfd27v-tr": {"Manufacturer": "Nexperia", "Product Category": "ESD Suppressor", "RoHS": "Yes", "Bus Type": "CAN", "V Rwm": "27V", "Package": "SOT-23", "Qualification":"AEC-Q101"},
-    "lt8912b": {"Manufacturer": "Analog Devices", "Product Category": "MIPI DSI to LVDS Bridge", "RoHS": "Yes", "Lanes": "4", "Resolution": "1080p", "Package": "QFN-48"},
-    "sn74lv1t34qdckrq1": {"Manufacturer": "Texas Instruments", "Product Category": "Buffer Gate", "RoHS": "Yes", "Channels": "1", "Direction": "Uni-Directional", "Package": "SC-70"},
-    "lps35hwtr": {"Manufacturer": "STMicroelectronics", "Product Category": "Pressure Sensor", "RoHS": "Yes", "Pressure Range": "260 hPa to 1260 hPa", "Package": "HLGA-10", "Interface": "I2C, SPI", "Qualification":"AEC-Q104"},
-    "bme680": {"Manufacturer": "Bosch Sensortec", "Product Category": "Environmental Sensor", "RoHS": "Yes", "Parameters": "Gas, Pressure, Humidity, Temperature", "Interface": "I2C, SPI", "Package": "LGA-8"},
-    "mmc5603nj": {"Manufacturer": "MEMSIC", "Product Category": "Magnetometer", "RoHS": "Yes", "Channels": "3", "Magnetic Field Range": "±30 G", "Interface": "I2C, SPI", "Package": "LGA-8"},
-    "lsm6dsox": {"Manufacturer": "STMicroelectronics", "Product Category": "IMU", "RoHS": "Yes", "Sensor": "Accelerometer, Gyroscope", "Axes": "6", "Interface": "I2C, SPI", "Package": "LGA-14"},
-    "max22442aatb+t": {"Manufacturer": "Maxim Integrated", "Product Category": "RS-485 Transceiver", "RoHS": "Yes", "Data Rate": "50 Mbps", "Package": "TDFN-8"},
-    "ubx-m8030-kt": {"Manufacturer": "u-blox", "Product Category": "GNSS Receiver IC", "RoHS": "Yes", "Constellations": "GPS, GLONASS, BeiDou, Galileo", "Package": "LGA-24"},
-    "nrf52832-qfaa": {"Manufacturer": "Nordic Semiconductor", "Product Category": "Bluetooth SoC", "RoHS": "Yes", "Protocol": "Bluetooth 5.0, ANT, 2.4 GHz", "Flash": "512KB", "RAM": "64KB", "Package": "QFN-48"},
-    "esp32-wroom-32d": {"Manufacturer": "Espressif", "Product Category": "Wi-Fi Module", "RoHS": "Yes", "Protocol": "802.11 b/g/n, Bluetooth", "Flash": "4MB", "RAM": "520KB", "Package": "Module"},
-    "sim7600g-h": {"Manufacturer": "SIMCom", "Product Category": "LTE Module", "RoHS": "Yes", "Bands": "Multi-band FDD/TDD LTE, GSM/GPRS/EDGE", "Interface": "USB, UART, GPIO", "Package": "LCC"},
-    "l80-r": {"Manufacturer": "Quectel", "Product Category": "GPS Module", "RoHS": "Yes", "Channels": "66", "Package": "LCC", "Description": "Ultra-compact GPS LCC module"},
-    "nektar-l1": {"Manufacturer": "Laird Connectivity", "Product Category": "Antenna", "RoHS": "Yes", "Frequency": "698-960MHz, 1710-2700MHz", "Description": "LTE/4G/5G Antenna"},
-    "gmm-5040": {"Manufacturer": "Acon", "Product Category": "Antenna", "RoHS": "Yes", "Frequency": "1575.42MHz", "Description": "GPS/GNSS active patch antenna"}
+    "d24v0s1u2tq-7": {"Manufacturer": "Diodes Inc.", "Product Category": "TVS Diode Array", "RoHS": "Yes", "V Rwm": "24V", "Channels": "1", "Package": "SOD-323", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
+    "mmsz5225bt1g": {"Manufacturer": "onsemi", "Product Category": "Zener Diode", "RoHS": "Yes", "Vz": "3V", "Power": "500mW", "Tolerance": "5%", "Package": "SOD-123", "Minimum Operating Temperature": "-65 C", "Maximum Operating Temperature": "150 C"},
+    "1n4148ws-7-f": {"Manufacturer": "Diodes Inc.", "Product Category": "Diode", "RoHS": "Yes", "Vrrm": "75V", "If(AV)": "150mA", "Package": "SOD-323", "Minimum Operating Temperature": "-65 C", "Maximum Operating Temperature": "150 C"},
+    "ss34-e3/57t": {"Manufacturer": "Vishay", "Product Category": "Schottky Diode", "RoHS": "Yes", "Vrrm": "40V", "If(AV)": "3A", "Package": "DO-214AC", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
+    "mbrm140t3g": {"Manufacturer": "onsemi", "Product Category": "Schottky Diode", "RoHS": "Yes", "Vrrm": "40V", "If(AV)": "1A", "Package": "SMA", "Minimum Operating Temperature": "-65 C", "Maximum Operating Temperature": "150 C"},
+    "tps54331ddag": {"Manufacturer": "Texas Instruments", "Product Category": "DC/DC Converter", "RoHS": "Yes", "Topology": "Buck", "Input Voltage": "3.5V to 28V", "Output Voltage": "0.8V to 25V", "Output Current": "3A", "Package": "SOP-8", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "150 C", "Qualification": "AEC-Q100"},
+    "lm5066imm/nopb": {"Manufacturer": "Texas Instruments", "Product Category": "Hot Swap Controller", "RoHS": "Yes", "Input Voltage": "8V to 80V", "Package": "MSOP-10", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q100"},
+    "drr-34-86-7": {"Manufacturer": "Standex", "Product Category": "Reed Relay", "RoHS": "Yes", "Coil Voltage": "5V", "Contact Form": "SPST-NO", "Current Rating": "0.5A", "Package": "DIP", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C"},
+    "si3445cdv-t1-ge3": {"Manufacturer": "Vishay", "Product Category": "MOSFET", "RoHS": "Yes", "Vds": "30V", "Id": "6.3A", "Rds(on)": "22 mOhm", "Package": "TSOP-6", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
+    "dta114eekat146": {"Manufacturer": "Rohm Semiconductor", "Product Category": "Transistor", "RoHS": "Yes", "Type": "PNP Bipolar", "Ic": "-100mA", "Package": "SC-59", "Minimum Operating Temperature": "-55 C", "Maximum Operating Temperature": "150 C"},
+    "lm2904qdrq1": {"Manufacturer": "Texas Instruments", "Product Category": "Operational Amplifier", "RoHS": "Yes", "Number of Channels": "2", "Voltage": "3V to 26V", "Package": "SOIC-8", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q100"},
+    "tps7a7805ddct": {"Manufacturer": "Texas Instruments", "Product Category": "LDO Regulator", "RoHS": "Yes", "Output Voltage": "5V", "Output Current": "50mA", "Input Voltage": "5V to 100V", "Package": "SOT-223", "Minimum Operating Temperature": "-40 C", "Maximum Operating Temperature": "125 C", "Qualification": "AEC-Q100"}
 }
 
+# --- UNIFIED HELPER FUNCTIONS (for data parsing and display) ---
+def parse_uploaded_file(uploaded_file):
+    """Parses various file types to extract text and data."""
+    file_type = uploaded_file.type
+    content = None
+    if file_type == "application/pdf":
+        with pdfplumber.open(uploaded_file) as pdf:
+            content = " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
+    elif file_type == "text/plain":
+        content = uploaded_file.getvalue().decode("utf-8")
+    elif file_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        content = parse_xlsx(uploaded_file)
+    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        content = parse_docx(uploaded_file)
+    else:
+        st.error(f"Unsupported file type: {file_type}")
+        return None
+    return content
 
-# --- TEST CASE KNOWLEDGE BASE ---
-TEST_CASE_KNOWLEDGE_BASE = {
-    "ip rating": {
-        "name": "IP Ingress Protection Test",
-        "standard": "IEC 60529",
-        "description": "Measures the protection provided by a device enclosure against solid objects (like dust) and liquids (like water).",
-        "procedure": [
-            "1. Prepare the test chamber with a specified dust concentration or water spray nozzle.",
-            "2. Place the device in the chamber and expose it to the test conditions for the required duration.",
-            "3. Inspect the device for any ingress of dust or water.",
-            "4. Verify that the device is still fully functional."
-        ],
-        "parameters": {
-            "Solid Object Rating": "IP1X to IP6X",
-            "Liquid Ingress Rating": "IPX1 to IPX9K",
-            "Test Duration": "Varies by rating"
-        },
-        "equipment": ["Dust chamber", "Water spray nozzles", "Pressure gauge", "Humidity sensor"]
-    },
-    "vibration": {
-        "name": "Vibration Test",
-        "standard": "IEC 60068-2-6 (Sinusoidal Vibration)",
-        "description": "Evaluates the mechanical durability of a component or system under vibration stress, simulating real-world usage.",
-        "procedure": [
-            "1. Secure the device to a vibration table using a rigid fixture.",
-            "2. Program the vibration table for the specified frequency and amplitude profile.",
-            "3. Subject the device to vibration on three orthogonal axes (X, Y, Z).",
-            "4. Monitor the device for any mechanical failures or performance degradation during and after the test."
-        ],
-        "parameters": {
-            "Frequency Range": "10 Hz to 2000 Hz",
-            "Amplitude/Acceleration": "10 Grms to 50 Grms",
-            "Test Duration": "Varies by profile (e.g., 2 hours per axis)"
-        },
-        "equipment": ["Electrodynamic shaker (Vibration table)", "Vibration controller", "Accelerometers", "Test fixture"]
-    },
-    "short circuit": {
-        "name": "External Short Circuit Test (Battery)",
-        "standard": "AIS-156 / IEC 62133",
-        "description": "Assesses the safety of a battery pack when subjected to an external short circuit condition.",
-        "procedure": [
-            "1. Fully charge the battery pack to its maximum rated voltage.",
-            "2. Connect a short circuit device with low resistance (e.g., <5 mOhm) across the battery terminals.",
-            "3. Monitor the battery's voltage, temperature, and current throughout the test.",
-            "4. The test is considered a pass if there is no fire or explosion and the temperature does not exceed safety limits."
-        ],
-        "parameters": {
-            "Short Circuit Resistance": "< 5 mOhm",
-            "Test Duration": "Until thermal stabilization or 24 hours",
-            "Temperature Limit": "Varies by standard, typically < 150°C"
-        },
-        "equipment": ["Short circuit tester", "Data logger", "Thermocouples", "Safety chamber"]
-    },
-    "overcharge": {
-        "name": "Overcharge Test (Battery)",
-        "standard": "AIS-156",
-        "description": "Evaluates the safety of a battery pack when subjected to an overvoltage condition.",
-        "procedure": [
-            "1. Fully charge the battery pack to its maximum rated voltage.",
-            "2. Apply a continuous overvoltage condition to the battery pack.",
-            "3. Monitor the battery's voltage, temperature, and current throughout the test.",
-            "4. The test is considered a pass if there is no fire or explosion."
-        ],
-        "parameters": {
-            "Overcharge Voltage": "Typically 1.2 x maximum rated voltage",
-            "Test Duration": "Until thermal stabilization or 24 hours",
-        },
-        "equipment": ["Programmable power supply", "Data logger", "Thermocouples", "Safety chamber"]
-    },
-    "can": {
-        "name": "CAN Bus Communication Test",
-        "standard": "ISO 11898",
-        "description": "Verifies that a CAN transceiver or node correctly sends and receives data packets on the CAN bus without errors.",
-        "procedure": [
-            "1. Connect the CAN node to a test bus with a known good CAN controller.",
-            "2. Initialize the CAN controller and send a series of standard and extended frames.",
-            "3. Monitor the transmitted and received messages to verify data integrity and timing.",
-            "4. Introduce bus faults (e.g., short circuit to Vbat or GND) and verify the node's ability to handle them gracefully.",
-        ],
-        "parameters": {
-            "Bit Rate": "Up to 1 Mbps (for classic CAN)",
-            "Termination Resistance": "120 Ohm"
-        },
-        "equipment": ["CAN Bus Analyzer", "Oscilloscope", "Programmable Power Supply"]
-    },
-    "gps": {
-        "name": "GPS Signal Acquisition Test",
-        "standard": "NMEA 0183",
-        "description": "Measures the time it takes for a GPS receiver to acquire a valid position fix from a cold start and hot start.",
-        "procedure": [
-            "1. Place the device in an open-sky environment or connect to a GPS simulator.",
-            "2. Power on the device from a cold state (no ephemeris data) and measure Time-to-First-Fix (TTFF).",
-            "3. Power off the device, wait a short period, then power on again (hot start) and measure TTFF.",
-            "4. Record the position accuracy and signal strength (C/N0) of the acquired satellites."
-        ],
-        "parameters": {
-            "Cold Start TTFF": "< 30 seconds (typical)",
-            "Hot Start TTFF": "< 5 seconds (typical)",
-            "Position Accuracy": "Varies by application"
-        },
-        "equipment": ["GPS Signal Simulator", "RF Shielding Box (for controlled testing)", "GNSS Analyzer"]
-    },
-    "gnss": {
-        "name": "GNSS Signal Acquisition Test",
-        "standard": "3GPP",
-        "description": "Measures the time it takes for a GNSS receiver to acquire a valid position fix from a cold start and hot start.",
-        "procedure": [
-            "1. Place the device in an open-sky environment or connect to a GNSS simulator.",
-            "2. Power on the device from a cold state (no ephemeris data) and measure Time-to-First-Fix (TTFF).",
-            "3. Power off the device, wait a short period, then power on again (hot start) and measure TTFF.",
-            "4. Record the position accuracy and signal strength (C/N0) of the acquired satellites."
-        ],
-        "parameters": {
-            "Cold Start TTFF": "< 30 seconds (typical)",
-            "Hot Start TTFF": "< 5 seconds (typical)",
-            "Position Accuracy": "Varies by application"
-        },
-        "equipment": ["GNSS Signal Simulator", "RF Shielding Box (for controlled testing)", "GNSS Analyzer"]
-    },
-    "bluetooth": {
-        "name": "Bluetooth RF Conformance Test",
-        "standard": "Bluetooth Core Specification",
-        "description": "Verifies that the Bluetooth radio transmitter and receiver conform to the technical specifications outlined by the Bluetooth SIG.",
-        "procedure": [
-            "1. Connect the Device Under Test (DUT) to a Bluetooth test set.",
-            "2. Run a series of tests to measure transmitter characteristics such as power, modulation, and spurious emissions.",
-            "3. Run a series of tests to measure receiver characteristics such as sensitivity and interference tolerance.",
-            "4. Generate a test report showing pass/fail results for each parameter against the standard's limits."
-        ],
-        "parameters": {
-            "Transmitter Power": "Varies by class",
-            "Receiver Sensitivity": "Typically -70 dBm or better"
-        },
-        "equipment": ["Bluetooth Tester", "Spectrum Analyzer", "RF attenuators"]
-    },
-    "wifi": {
-        "name": "Wi-Fi RF Performance Test",
-        "standard": "IEEE 802.11",
-        "description": "Evaluates the wireless performance of a Wi-Fi module, including its throughput, signal quality, and range.",
-        "procedure": [
-            "1. Configure a test chamber with a calibrated access point (AP) and a spectrum analyzer.",
-            "2. Connect the Device Under Test (DUT) to the AP and measure throughput at various distances and signal levels.",
-            "3. Measure key RF parameters such as Error Vector Magnitude (EVM), spectral mask, and adjacent channel power.",
-            "4. Analyze the results to ensure compliance with the specified IEEE 802.11 standard."
-        ],
-        "parameters": {
-            "Throughput": "Varies by standard (e.g., 54 Mbps for 802.11g)",
-            "EVM": "Typically < -25 dB",
-            "Frequency": "2.4 GHz or 5 GHz band"
-        },
-        "equipment": ["Wi-Fi Test Set", "Spectrum Analyzer", "RF Chamber"]
-    },
-    "lte": {
-        "name": "LTE RF Conformance Test",
-        "standard": "3GPP LTE",
-        "description": "Verifies that the LTE modem's radio frequency performance complies with the 3GPP standards for communication.",
-        "procedure": [
-            "1. Connect the LTE modem to a base station simulator (e.g., a CMW500).",
-            "2. Configure the simulator to establish an RRC connection with the modem.",
-            "3. Run a series of tests to measure key RF performance indicators, including Transmitter Power, Receiver Sensitivity, and Error Vector Magnitude (EVM).",
-            "4. Verify that the modem correctly handles different network conditions, such as handovers and cell reselection."
-        ],
-        "parameters": {
-            "Frequency Bands": "Varies by region and network operator",
-            "Transmitter Power": "Varies by Power Class",
-            "Receiver Sensitivity": "Varies by Frequency Band"
-        },
-        "equipment": ["Base Station Simulator (e.g., R&S CMW500)", "RF Cables", "Anechoic Chamber"]
-    },
-    "sensor": {
-        "name": "Automotive Sensor Qualification",
-        "standard": "AEC-Q104",
-        "description": "A general qualification standard for automotive sensors, ensuring reliability and performance in harsh environments.",
-        "procedure": [
-            "1. Subject the sensor to a series of environmental and mechanical stress tests.",
-            "2. Environmental tests include thermal cycling, high-temperature storage, and humidity testing.",
-            "3. Mechanical stress tests include vibration, mechanical shock, and drop tests.",
-            "4. Verify the sensor's performance and accuracy after each stress test to ensure it remains within specification."
-        ],
-        "parameters": {
-            "Thermal Cycling": "-40°C to +125°C",
-            "Vibration": "10 Hz to 2000 Hz",
-            "Humidity": "85% RH at 85°C"
-        },
-        "equipment": ["Thermal Chamber", "Vibration Shaker", "Humidity Chamber"]
-    }
-}
-
-
-# --- Initialize Session State ---
-# This dictionary holds all data that persists across user interactions
-if "reports_verified" not in st.session_state: st.session_state.reports_verified = 0
-if "requirements_generated" not in st.session_state: st.session_state.requirements_generated = 0
-if "found_component" not in st.session_state: st.session_state.found_component = None
-if "searched_part" not in st.session_state: st.session_state.searched_part = None
-
-def get_text_from_docx(file):
-    doc = docx.Document(file)
-    full_text = []
-    for para in doc.paragraphs:
-        full_text.append(para.text)
-    return '\n'.join(full_text)
-
-def intelligent_parser(text: str):
-    extracted_tests = []
-    lines = text.splitlines()
-    for line in lines:
-        line = line.strip()
-        if not line: continue
-        
-        test_data = {"TestName": "Not found", "Result": "N/A", "Actual": "Not found", "Standard": "Not found"}
-        
-        patterns = [
-            r'^(.*?)\s*-->\s*(Passed|Failed|Success)\s*-->\s*(.+)$',
-            r'^(.*?)\s*-->\s*(.+)$',
-            r'^\d+:\s*([A-Z_]+):\s*"([A-Z]+)"$',
-            r'^(.+?)\s+is\s+(success|failure|passed|failed)$',
-            r'^(.+?)\s+(Failed|Passed)$',
-        ]
-
-        match_found = False
-        for i, p in enumerate(patterns):
-            match = re.match(p, line, re.I)
-            if match:
-                groups = match.groups()
-                if i == 0: test_data.update({"TestName": groups[0].strip(), "Result": "PASS" if groups[1].lower() in ["passed", "success"] else "FAIL", "Actual": groups[2].strip()})
-                elif i == 1:
-                    result_str = groups[1].lower()
-                    result = "PASS" if "passed" in result_str or "success" in result_str else "FAIL" if "failed" in result_str else "INFO"
-                    test_data.update({"TestName": groups[0].strip(), "Result": result, "Actual": groups[1].strip()})
-                elif i == 2: test_data.update({"TestName": groups[0].replace("_", " ").strip(), "Result": groups[1].upper()})
-                elif i == 3: test_data.update({"TestName": groups[0].strip(), "Result": "PASS" if groups[1].lower() in ["success", "passed"] else "FAIL"})
-                elif i == 4: test_data.update({"TestName": groups[0].strip(), "Result": "PASS" if groups[1].lower() == "passed" else "FAIL"})
-                match_found = True
-                break
-        
-        if match_found:
-            KEYWORD_TO_STANDARD_MAP = {
-                "gps": "NMEA 0183", "gnss": "3GPP", "bluetooth": "Bluetooth Core Specification", "wifi": "IEEE 802.11",
-                "lte": "3GPP LTE", "can": "ISO 11898", "sensor": "AEC-Q104", "ip rating": "IEC 60529",
-                "short circuit": "AIS-156 / IEC 62133", "overcharge": "AIS-156", "vibration": "IEC 60068-2-6"
-            }
-            for keyword, standard in KEYWORD_TO_STANDARD_MAP.items():
-                if keyword in test_data["TestName"].lower():
-                    test_data["Standard"] = standard
-                    break
-            extracted_tests.append(test_data)
-            
-    return extracted_tests
-
-def parse_report(uploaded_file):
-    if not uploaded_file: return []
+def parse_docx(uploaded_file):
+    """Parses a .docx file and returns its text content."""
     try:
-        file_extension = os.path.splitext(uploaded_file.name.lower())[1]
-        if file_extension in ['.csv', '.xlsx']:
-            df = pd.read_csv(uploaded_file) if file_extension == '.csv' else pd.read_excel(uploaded_file)
-            df.columns = [str(c).strip().lower() for c in df.columns]
-            rename_map = {'test': 'TestName', 'standard': 'Standard', 'expected': 'Expected', 'actual': 'Actual', 'result': 'Result', 'description': 'Description', 'part': 'TestName', 'manufacturer pn': 'Actual'}
-            df.rename(columns=rename_map, inplace=True)
-            return df.to_dict('records')
-        elif file_extension == '.pdf':
-             with pdfplumber.open(uploaded_file) as pdf:
-                content = "".join(page.extract_text() + "\n" for page in pdf.pages if page.extract_text())
-        elif file_extension == '.docx':
-            content = get_text_from_docx(uploaded_file)
-        else:
-            content = uploaded_file.getvalue().decode('utf-8', errors='ignore')
-        return intelligent_parser(content)
+        doc = docx.Document(uploaded_file)
+        return "\n".join([p.text for p in doc.paragraphs])
     except Exception as e:
-        st.error(f"An error occurred while parsing: {e}")
-        return []
+        st.error(f"An error occurred while parsing the DOCX file: {e}")
+        return None
 
-def display_test_card(test_case, color):
-    details = f"<b>🧪 Test:</b> {test_case.get('TestName', 'N/A')}<br>"
-    for key, label in {'Standard': '📘 Standard', 'Expected': '🎯 Expected', 'Actual': '📌 Actual', 'Description': '💬 Description'}.items():
-        value = test_case.get(key)
-        if pd.notna(value) and str(value).strip() and str(value).lower() not in ['—', 'nan']:
-            details += f"<b>{label}:</b> {value}<br>"
-    st.markdown(f"<div class='card' style='border-left-color:{color};'>{details}</div>", unsafe_allow_html=True)
+def parse_xlsx(uploaded_file):
+    """Parses a .xlsx file and returns its text content."""
+    try:
+        workbook = openpyxl.load_workbook(uploaded_file)
+        full_text = []
+        for sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+            full_text.append(f"--- Sheet: {sheet_name} ---")
+            for row in sheet.iter_rows():
+                row_text = [str(cell.value) if cell.value is not None else "" for cell in row]
+                full_text.append("\t".join(row_text))
+        return "\n".join(full_text)
+    except Exception as e:
+        st.error(f"An error occurred while parsing the XLSX file: {e}")
+        return None
 
+def extract_test_data(text_content):
+    """Extracts test case information from text based on common patterns."""
+    extracted_data = []
+    # This regex looks for lines starting with numbers followed by a period, space, then a test description.
+    test_pattern = re.compile(r"(\d+\.\s.*?(?:PASS|FAIL|N/A))", re.IGNORECASE | re.DOTALL)
+    matches = test_pattern.findall(text_content)
+    if not matches:
+        # Fallback regex for a more general case
+        test_pattern = re.compile(r"(Test Case ID: .*?(?:Result: (?:PASS|FAIL|N/A)))", re.IGNORECASE | re.DOTALL)
+        matches = test_pattern.findall(text_content)
 
-# ---- Streamlit App Layout ----
-option = st.sidebar.radio("Navigate", ("Component Information", "Test Requirement Generation", "Test Report Verification", "Dashboard & Analytics"))
-st.sidebar.info("An integrated tool for automotive compliance.")
+    for match in matches:
+        match = match.strip()
+        result = "N/A"
+        if "PASS" in match.upper():
+            result = "PASS"
+        elif "FAIL" in match.upper():
+            result = "FAIL"
 
-# --- Component Information Module ---
-if option == "Component Information":
-    st.subheader("Key Component Information", anchor=False)
-    st.caption("Look up parts from the fully populated component database.")
-    
-    part_q = st.text_input("Quick Lookup (part number)", placeholder="e.g., gcm155l81e104ke02d").lower().strip()
-    
-    if st.button("Find Component"):
-        if part_q:
-            db_for_search = {k.lower(): v for k, v in UNIFIED_COMPONENT_DB.items()}
-            result = db_for_search.get(part_q)
+        test_info = {
+            "Test Description": match,
+            "Result": result
+        }
+        extracted_data.append(test_info)
+    return extracted_data
 
-            if result:
-                st.session_state.found_component = result
-                st.session_state.searched_part = part_q
-                st.success(f"Found: {part_q.upper()}. Displaying details below.")
-            else:
-                st.session_state.found_component = None
-                st.session_state.searched_part = None # Clear searched part if not found
-                st.warning("Part number not found in the database.")
-        else:
-            st.warning("Please enter a part number to search.")
-            st.session_state.found_component = None
-            st.session_state.searched_part = None
-            
-    if st.session_state.get('found_component') and st.session_state.get('searched_part'):
-        st.markdown("---")
-        component = st.session_state.found_component
-        st.markdown(f"### Details for: {st.session_state.searched_part.upper()}")
+def find_component_in_db(component_part_number):
+    """
+    Finds a component in the UNIFIED_COMPONENT_DB.
+    Returns the component's dictionary if found, otherwise None.
+    """
+    # Normalize the input part number for case-insensitive lookup
+    normalized_part_number = component_part_number.lower().strip()
+    return UNIFIED_COMPONENT_DB.get(normalized_part_number)
 
-        # Dynamically create display data from the found component's dictionary
-        ordered_keys_priority = [
-            "Manufacturer", "Product Category", "RoHS", "Capacitance", 
-            "Voltage Rating DC", "Dielectric", "Tolerance", "Case Code - in", 
-            "Case Code - mm", "Termination Style", "Termination", 
-            "Minimum Operating Temperature", "Maximum Operating Temperature", 
-            "Length", "Width", "Height", "Product", "Qualification",
-            "CPU Core", "Frequency", "RAM Size", "Flash Size", "Package",
-            "Data Rate", "Output Voltage", "Output Current", "Vds", "Id", 
-            "Rds(on)", "VRRM", "If(AV)", "Pitch", "Positions", "Inductance",
-            "Impedance @ 100MHz", "Current", "Type", "ESR", "V Rwm", "Power",
-            "Vz", "Channels", "Bus Type", "Isolation", "Gain", "Series",
-            "Bands", "Cable", "Interface", "Description", "Elements"
-        ]
-        
-        display_data = {}
-        display_data["Part Number"] = st.session_state.searched_part.upper()
-
-        for db_key in ordered_keys_priority:
-            if db_key in component:
-                display_key = db_key.replace('_', ' ').title() 
-                display_data[display_key] = component[db_key]
-        
-        for db_key, value in component.items():
-            display_key = db_key.replace('_', ' ').title()
-            if display_key not in display_data:
-                display_data[display_key] = value
-
-        # Convert the dictionary to a pandas DataFrame and display as a single-row table
-        df = pd.DataFrame([display_data])
-        st.dataframe(df.style.set_properties(**{'white-space': 'normal'}), hide_index=True, use_container_width=True)
+def display_test_card(test_data, color="#0056b3"):
+    """Displays a single test case in a stylish card format."""
+    st.markdown(f"""
+    <div class="card" style="border-left: 5px solid {color};">
+        <p><strong>Test:</strong> {test_data.get('Test Description', 'N/A')}</p>
+        <p><strong>Result:</strong> <span style="color:{color}; font-weight: bold;">{test_data.get('Result', 'N/A')}</span></p>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-# --- Test Requirement Generation Module ---
-elif option == "Test Requirement Generation":
-    st.subheader("Generate Detailed Test Requirements", anchor=False)
-    st.caption("Enter keywords (e.g., 'ip rating', 'can bus') to generate detailed automotive test procedures.")
-    
-    available_tests = list(TEST_CASE_KNOWLEDGE_BASE.keys())
-    text_input = st.text_input("Enter keywords (e.g., 'ip rating', 'can bus')", placeholder=f"Available: {', '.join(available_tests)}")
+# --- MAIN APPLICATION LOGIC ---
+st.sidebar.header("Navigation", anchor=False)
+option = st.sidebar.radio("Select a Module", ("Regulatory Requirements", "Report Verification", "Component Information", "Dashboard & Analytics"))
+
+# --- Regulatory Requirements Module ---
+if option == "Regulatory Requirements":
+    st.subheader("Regulatory Requirements Generator", anchor=False)
+    st.caption("Generate detailed test requirements based on industry standards.")
+
+    test_case_options = sorted(TEST_CASE_KNOWLEDGE_BASE.keys())
+    selected_test_cases = st.multiselect(
+        "Select the required tests:",
+        options=test_case_options,
+        help="Choose one or more test cases to generate detailed requirements."
+    )
 
     if st.button("Generate Requirements"):
-        user_case = text_input.strip().lower()
-        if user_case:
-            st.session_state.requirements_generated += 1
-            
-            matched_test = None
-            for key, test_data in TEST_CASE_KNOWLEDGE_BASE.items():
-                if user_case in key:
-                    matched_test = test_data
-                    break
-            
-            if matched_test:
-                st.markdown(f"#### Generated Procedure for: **{matched_test.get('name', 'N/A')}**")
-                
-                # Using a styled container for the output
-                with st.container():
-                    st.markdown("<div class='card'>", unsafe_allow_html=True)
-                    
-                    st.markdown(f"**Standard:** {matched_test.get('standard', 'N/A')}")
-                    st.markdown(f"**Description:** {matched_test.get('description', 'N/A')}")
-                    
-                    st.markdown("**Test Procedure:**")
-                    for step in matched_test.get('procedure', []):
-                        st.markdown(f"- {step}")
+        st.session_state.requirements_generated += 1
+        with st.spinner("Generating requirements..."):
+            st.success("Requirements generated!")
+            for test in selected_test_cases:
+                test_info = TEST_CASE_KNOWLEDGE_BASE.get(test)
+                if test_info:
+                    st.markdown(f"### {test_info['name']}")
+                    st.markdown(f"**Standard:** {test_info['standard']}")
+                    st.markdown(f"**Description:** {test_info['description']}")
+                    st.markdown("**Procedure:**")
+                    for step in test_info['procedure']:
+                        st.markdown(f"* {step}")
+                    st.markdown("**Parameters:**")
+                    for param, value in test_info['parameters'].items():
+                        st.markdown(f"* **{param}:** {value}")
+                    st.markdown("**Equipment:**")
+                    st.markdown(f"* {', '.join(test_info['equipment'])}")
+                    st.markdown("---")
 
-                    st.markdown("**Key Parameters:**")
-                    for param, value in matched_test.get('parameters', {}).items():
-                        st.markdown(f"- **{param}:** {value}")
 
-                    st.markdown(f"**Required Equipment:** {', '.join(matched_test.get('equipment', ['N/A']))}")
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
-            else:
-                st.warning(f"No detailed procedure found for '{user_case}'. Please try one of the following keywords: {', '.join(available_tests)}")
+# --- Report Verification Module ---
+elif option == "Report Verification":
+    st.subheader("Automated Report Verification", anchor=False)
+    st.caption("Upload a test report to automatically identify PASS/FAIL results.")
+    uploaded_file = st.file_uploader("Choose a file (PDF, TXT, DOCX, XLSX)", type=["pdf", "txt", "docx", "xlsx"])
 
-# --- Test Report Verification Module ---
-elif option == "Test Report Verification":
-    st.subheader("Upload & Verify Test Report", anchor=False)
-    st.caption("Upload reports (PDF, TXT, CSV, XLSX, DOCX, LOG) to extract and display all relevant data.")
-    uploaded_file = st.file_uploader("Upload a report file", type=["pdf", "docx", "xlsx", "csv", "txt", "log"])
     if uploaded_file:
-        parsed_data = parse_report(uploaded_file)
-        if parsed_data:
-            st.session_state.reports_verified += 1
-            passed = [t for t in parsed_data if "PASS" in str(t.get("Result", "")).upper()]
-            failed = [t for t in parsed_data if "FAIL" in str(t.get("Result", "")).upper()]
-            others = [t for t in parsed_data if not ("PASS" in str(t.get("Result", "")).upper() or "FAIL" in str(t.get("Result", "")).upper())]
-            
-            st.markdown(f"### Found {len(passed)} Passed, {len(failed)} Failed, and {len(others)} Other items.")
-            
-            if passed:
-                with st.expander("✅ Passed Cases", expanded=True):
-                    for t in passed: display_test_card(t, '#1e9f50')
-            if failed:
-                with st.expander("🔴 Failed Cases", expanded=True):
-                    for t in failed: display_test_card(t, '#c43a31')
-            if others:
-                with st.expander("ℹ️ Other/Informational Items", expanded=False):
-                    for t in others: display_test_card(t, '#808080')
+        st.session_state.reports_verified += 1
+        with st.spinner("Parsing and analyzing the report..."):
+            text_content = parse_uploaded_file(uploaded_file)
+
+        if text_content:
+            parsed_data = extract_test_data(text_content)
+
+            if parsed_data:
+                passed = [t for t in parsed_data if "PASS" in str(t.get("Result", "")).upper()]
+                failed = [t for t in parsed_data if "FAIL" in str(t.get("Result", "")).upper()]
+                others = [t for t in parsed_data if not ("PASS" in str(t.get("Result", "")).upper() or "FAIL" in str(t.get("Result", "")).upper())]
+
+                st.markdown(f"### Found {len(passed)} Passed, {len(failed)} Failed, and {len(others)} Other items.")
+
+                if failed:
+                    st.error(f"Report analysis complete. {len(failed)} FAILED test cases found.")
+                    with st.expander("🔴 Failed Cases", expanded=True):
+                        for t in failed: display_test_card(t, '#c43a31')
+                else:
+                    st.success("Report analysis complete. No FAILED test cases found.")
+
+                if passed:
+                    with st.expander("✅ Passed Cases", expanded=False):
+                        for t in passed: display_test_card(t, '#1e9f50')
+
+                if others:
+                    with st.expander("ℹ️ Other/Informational Items", expanded=False):
+                        for t in others: display_test_card(t, '#808080')
+            else:
+                st.warning("No recognizable test data was extracted. Please ensure the report contains clear PASS/FAIL keywords or numbered lists.")
         else:
-            st.warning("No recognizable data was extracted.")
+            st.error("Failed to extract content from the uploaded file.")
+
+
+# --- Component Information Module ---
+elif option == "Component Information":
+    st.subheader("Component Information Lookup", anchor=False)
+    st.caption("Look up key specifications for automotive-grade components.")
+
+    component_part_number = st.text_input("Enter Component Part Number:")
+
+    if component_part_number:
+        # Check if we have previously found this component to avoid redundant lookups
+        if st.session_state.found_component and st.session_state.found_component.get('Part Number', '').lower() == component_part_number.lower():
+            found_component_data = st.session_state.found_component
+        else:
+            found_component_data = find_component_in_db(component_part_number)
+            if found_component_data:
+                # Store the found component in session state
+                st.session_state.found_component = found_component_data
+                st.session_state.found_component['Part Number'] = component_part_number
+            else:
+                st.session_state.found_component = None
+
+        if found_component_data:
+            # Create a vertical table from the component data
+            component_df = pd.DataFrame(found_component_data.items(), columns=['Property', 'Value'])
+
+            st.success(f"Component '{component_part_number}' found.")
+            st.markdown("### Component Details:")
+            st.table(component_df)
+
+        else:
+            st.error(f"Component '{component_part_number}' not found in the database.")
 
 
 # --- Dashboard & Analytics Module ---
@@ -585,7 +735,11 @@ elif option == "Dashboard & Analytics":
     st.subheader("Dashboard & Analytics", anchor=False)
     st.caption("High-level view of session activities.")
     c1, c2, c3 = st.columns(3)
+
     c1.metric("Reports Verified", st.session_state.reports_verified)
     c2.metric("Requirements Generated", st.session_state.requirements_generated)
+    c3.metric("Components Looked Up", len(st.session_state.component_db))
 
-    c3.metric("Components in DB", len(UNIFIED_COMPONENT_DB))
+    if not st.session_state.component_db.empty:
+        st.markdown("### Recent Component Lookups")
+        st.dataframe(st.session_state.component_db)
