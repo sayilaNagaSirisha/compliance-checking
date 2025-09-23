@@ -572,60 +572,52 @@ def parse_xlsx(uploaded_file):
 
 def extract_test_data(text_content):
     """
-    Extracts test case information from text based on more flexible patterns.
-    It first tries a comprehensive regex and then falls back to a line-by-line keyword search.
+    Extracts individual test cases and their results from a continuous text block.
+    This version uses a regex to find numbered test cases and their associated results.
+    It can handle both the `XX: ... PASS` format and `XX: ... FAIL` format, ensuring
+    each result is captured independently.
     """
     extracted_data = []
 
-    # New, more flexible regex pattern
-    # This pattern looks for lines that contain "test", "case", "check", or similar words,
-    # followed by a result keyword (PASS, FAIL, N/A, etc.).
+    # This regex is specifically designed to handle the format in your image:
+    # `[number]: [Test Description] -> [Result]` or `[number]: [Test Description] "FAIL"`
     test_pattern = re.compile(
-        r"(.*?test.*?(?:PASS|FAIL|N\/A|COMPLETE|SUCCESS|FAILURE).*)",
-        re.IGNORECASE | re.DOTALL
+        r"(\d+): (.*?)(?:->| |)(PASS|FAIL|N/A|COMPLETE|SUCCESS|FAILURE)",
+        re.IGNORECASE
     )
+
     matches = test_pattern.findall(text_content)
 
     if not matches:
-        # Fallback to a simpler line-by-line search if the regex fails.
+        # Fallback to a simpler line-by-line search for results if the primary regex fails.
+        # This can be useful for reports that aren't numbered.
         lines = text_content.split('\n')
         for line in lines:
             line = line.strip()
-            result = "N/A"
-            test_found = False
+            if not line:
+                continue
 
-            if "PASS" in line.upper() or "SUCCESS" in line.upper():
-                result = "PASS"
-                test_found = True
-            elif "FAIL" in line.upper() or "FAILURE" in line.upper():
+            result = None
+            if "FAIL" in line.upper() or "FAILURE" in line.upper():
                 result = "FAIL"
-                test_found = True
-            elif "N/A" in line.upper():
+            elif "PASS" in line.upper() or "SUCCESS" in line.upper():
+                result = "PASS"
+            elif "N/A" in line.upper() or "NA" in line.upper():
                 result = "N/A"
-                test_found = True
 
-            # Only add the line if a result keyword was found
-            if test_found:
-                test_info = {
+            if result:
+                extracted_data.append({
                     "Test Description": line,
                     "Result": result
-                }
-                extracted_data.append(test_info)
+                })
     else:
-        # Process the regex matches
+        # Process the matches found by the regex
         for match in matches:
-            match = match.strip()
-            result = "N/A"
-            if "PASS" in match.upper() or "SUCCESS" in match.upper():
-                result = "PASS"
-            elif "FAIL" in match.upper() or "FAILURE" in match.upper():
-                result = "FAIL"
-
-            test_info = {
-                "Test Description": match,
-                "Result": result
-            }
-            extracted_data.append(test_info)
+            test_id, description, result = match
+            extracted_data.append({
+                "Test Description": f"{test_id}: {description.strip()}",
+                "Result": result.upper()
+            })
 
     return extracted_data
 
