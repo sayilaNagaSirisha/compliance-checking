@@ -64,10 +64,6 @@ def init_session_state():
             st.session_state[key] = value
 init_session_state()
 
-# === Knowledge Bases (omitted for brevity, but would be in the full script) ===
-# This section would contain the detailed `TEST_CASE_KNOWLEDGE_BASE` and `UNIFIED_COMPONENT_DB`
-# as provided in the previous full code example.
-
 # --- UNIFIED HELPER FUNCTIONS (for data parsing and display) ---
 def parse_uploaded_file(uploaded_file):
     """Parses various file types to extract text and data."""
@@ -117,14 +113,11 @@ def parse_xlsx(file_bytes):
 def extract_test_data(text_content):
     """
     Extracts individual test cases and their results from a continuous text block.
-    This version uses a regex to find numbered test cases and their associated results.
-    It can handle both the `XX: ... PASS` format and `XX: ... FAIL` format, ensuring
-    each result is captured independently.
     """
     extracted_data = []
-
-    # This regex is specifically designed to handle the format in your image:
-    # `[number]: [Test Description] -> [Result]` or `[number]: [Test Description] "FAIL"`
+    
+    # This regex handles the formats from the images: `[number]: [Test Description] -> [Result]` or `[number]: [Test Description] "FAIL"`
+    # It is designed to be flexible.
     test_pattern = re.compile(
         r"(\d+): (.*?)(?:->| |)(PASS|FAIL|N/A|COMPLETE|SUCCESS|FAILURE)",
         re.IGNORECASE
@@ -134,13 +127,11 @@ def extract_test_data(text_content):
 
     if not matches:
         # Fallback to a simpler line-by-line search for results if the primary regex fails.
-        # This can be useful for reports that aren't numbered.
         lines = text_content.split('\n')
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-
             result = None
             test_description = line
             if "FAIL" in line.upper() or "FAILURE" in line.upper():
@@ -151,14 +142,12 @@ def extract_test_data(text_content):
                 result = "N/A"
 
             if result:
-                # Remove the result keyword from the description for cleaner display
                 test_description = re.sub(r'(PASS|FAIL|N/A|COMPLETE|SUCCESS|FAILURE)', '', test_description, flags=re.IGNORECASE).strip()
                 extracted_data.append({
                     "Test Description": test_description,
                     "Result": result
                 })
     else:
-        # Process the matches found by the regex
         for match in matches:
             test_id, description, result = match
             extracted_data.append({
@@ -169,7 +158,7 @@ def extract_test_data(text_content):
     return extracted_data
 
 
-def display_test_card(test_data, color="#0056b3"):
+def display_test_card(test_data, color):
     """Displays a single test case in a stylish card format."""
     st.markdown(f"""
     <div class="card" style="border-left: 5px solid {color};">
@@ -223,6 +212,3 @@ if option == "Report Verification":
                 st.warning("No recognizable test data was extracted. Please ensure the report contains clear PASS/FAIL keywords or numbered lists.")
         else:
             st.error("Failed to extract content from the uploaded file.")
-
-# The other modules (Regulatory Requirements, Component Information, Dashboard) would follow here.
-# Their code is omitted for brevity but would be included in the full script.
