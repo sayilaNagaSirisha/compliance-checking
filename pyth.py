@@ -760,4 +760,4 @@ elif option == "Dashboard & Analytics":
 
     if not st.session_state.component_db.empty:
         st.markdown("### Recent Component Lookups")
-        st.dataframe(st.session_state.component_db, use_container_width=True)
+        st.dataframe(st.session_state.component_db, use_container_container=True)
