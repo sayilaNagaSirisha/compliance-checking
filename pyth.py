@@ -128,7 +128,7 @@ TEST_CASE_KNOWLEDGE_BASE = {
         "standard": "Based on AIS-156 / IEC 62133-2",
         "description": "Verifies the safety performance of the battery or system when an external short circuit is applied.",
         "procedure": [
-            "Ensure the DUT is fully charged.",
+            "Ensure the Device Under Test (DUT) is fully charged.",
             "Connect the positive and negative terminals of the DUT with a copper wire or load with a resistance of less than 100 mΩ.",
             "Maintain the short circuit condition for the specified duration or until the protection circuit interrupts the current.",
             "Monitor the DUT for any hazardous events like fire, explosion, or casing rupture.",
@@ -598,6 +598,7 @@ def extract_test_data(text_content):
                 continue
 
             result = None
+            test_description = line
             if "FAIL" in line.upper() or "FAILURE" in line.upper():
                 result = "FAIL"
             elif "PASS" in line.upper() or "SUCCESS" in line.upper():
@@ -606,8 +607,10 @@ def extract_test_data(text_content):
                 result = "N/A"
 
             if result:
+                # Remove the result keyword from the description for cleaner display
+                test_description = re.sub(r'(PASS|FAIL|N/A|COMPLETE|SUCCESS|FAILURE)', '', test_description, flags=re.IGNORECASE).strip()
                 extracted_data.append({
-                    "Test Description": line,
+                    "Test Description": test_description,
                     "Result": result
                 })
     else:
@@ -620,6 +623,7 @@ def extract_test_data(text_content):
             })
 
     return extracted_data
+
 
 def find_component_in_db(component_part_number):
     """
